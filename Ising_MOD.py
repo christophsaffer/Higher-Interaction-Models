@@ -14,7 +14,7 @@ class Ising_MOD:
         self.dim = len(self.data.columns)
         self.len = len(self.data)
         self.cats = []
-        # index = 0
+        self.parameters = []
         for x in self.data.columns:
             index = 0
             self.cats.append(np.unique(self.data[x]))
@@ -22,7 +22,21 @@ class Ising_MOD:
                 {self.cats[index][0]: 0, self.cats[index][1]: 1}, inplace=True)
             index += 1
 
-    # def pseudoLH()
+    def slicefunc(self, Q, x, r):
+        return 0
+
+    def normalizfunc(self, Q, x, r):
+        return 0
+
+    def pseudoLH(self, Q):
+        s = 0
+
+        for x in np.array(self.data):
+            for i in range(0, self.dim):
+                s += self.slicefunc(Q, x, i) - np.log(1 +
+                                                      np.exp(normalizfunc(Q, x, i)))
+
+        return -s
 
     # def modelselection(self):
 
