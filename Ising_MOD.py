@@ -23,18 +23,25 @@ class Ising_MOD:
             index += 1
 
     def slicefunc(self, Q, x, r):
-        return 0
+        s = 0
+        for i in range(0, self.dim):
+            s += 2 * Q[r, i] * x[r] * x[i]
+
+        return s
 
     def normalizfunc(self, Q, x, r):
-        return 0
+        s = 0
+        for i in range(0, self.dim):
+            s += 2 * Q[r, i] * x[i]
+
+        return np.log(1 + np.exp(s))
 
     def pseudoLH(self, Q):
         s = 0
 
         for x in np.array(self.data):
             for i in range(0, self.dim):
-                s += self.slicefunc(Q, x, i) - np.log(1 +
-                                                      np.exp(normalizfunc(Q, x, i)))
+                s += self.slicefunc(Q, x, i) - self.normalizfunc(Q, x, i)
 
         return -s
 
