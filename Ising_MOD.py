@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from scipy.optimize import minimize
 import itertools
 
 
@@ -25,14 +26,15 @@ class Ising_MOD:
     def slicefunc(self, Q, x, r):
         s = 0
         for i in range(0, self.dim):
-            s += 2 * Q[r, i] * x[r] * x[i]
+            # s += 2 * Q[r, i] * x[r] * x[i]
+            s += 2 * Q[r * self.dim + i] * x[r] * x[i]
 
         return s
 
     def normalizfunc(self, Q, x, r):
         s = 0
         for i in range(0, self.dim):
-            s += 2 * Q[r, i] * x[i]
+            s += 2 * Q[r * self.dim + i] * x[i]
 
         return np.log(1 + np.exp(s))
 
@@ -45,7 +47,29 @@ class Ising_MOD:
 
         return -s
 
-    # def modelselection(self):
+    def modelselect(self):
+
+        Q = np.zeros(self.dim * self.dim)
+        sol = minimize(self.pseudoLH, Q, method='BFGS')
+        self.parameters = sol['x']
+
+        return sol
+
+    def normalize(self):
+        li = list(itertools.product([0, 1], repeat=self.dim))
+        s = 0
+        Q = self.parameters.reshape((self.dim, self.dim))
+
+        for x in li:
+            s += np.exp(np.dot(np.dot(np.array(x), Q), np.array(x)))
+
+        return 1/s
+
+    def funcvalue(self, x):
+
+        Q = self.parameters.reshape((self.dim, self.dim))
+
+        return self.normalize() * np.exp(np.dot(np.dot(np.array(x), Q), np.array(x)))
 
 
 if __name__ == '__main__':
