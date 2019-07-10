@@ -11,32 +11,38 @@ class Ising_MOD:
 
     def add_dataset(self, path):
 
-        self.data = pd.read_csv(path)
+        self.data = pd.read_csv(path, index_col=0)
         self.dim = len(self.data.columns)
         self.len = len(self.data)
         self.cats = []
         self.parameters = []
-        for x in self.data.columns:
-            index = 0
-            self.cats.append(np.unique(self.data[x]))
-            self.data[x].replace(
-                {self.cats[index][0]: 0, self.cats[index][1]: 1}, inplace=True)
-            index += 1
+        # for x in self.data.columns:
+        #     index = 0
+        #     self.cats.append(np.unique(self.data[x]))
+        #     self.data[x].replace(
+        #         {self.cats[index][0]: 0, self.cats[index][1]: 1}, inplace=True)
+        #     index += 1
 
     def slicefunc(self, Q, x, r):
         s = 0
         for i in range(0, self.dim):
             # s += 2 * Q[r, i] * x[r] * x[i]
-            s += 2 * Q[r * self.dim + i] * x[r] * x[i]
+            if i == r:
+                s += 2 * Q[r * self.dim + i] * x[r] * x[i]
+            else:
+                s += Q[r * self.dim + i] * x[r] * x[i]
 
-        return s
+        return 0.5 * s
 
     def normalizfunc(self, Q, x, r):
         s = 0
         for i in range(0, self.dim):
-            s += 2 * Q[r * self.dim + i] * x[i]
+            if i == r:
+                s += 2 * Q[r * self.dim + i] * x[i]
+            else:
+                s += Q[r * self.dim + i] * x[i]
 
-        return np.log(1 + np.exp(s))
+        return np.log(1 + np.exp(0.5 * s))
 
     def pseudoLH(self, Q):
         s = 0
@@ -61,7 +67,7 @@ class Ising_MOD:
         Q = self.parameters.reshape((self.dim, self.dim))
 
         for x in li:
-            s += np.exp(np.dot(np.dot(np.array(x), Q), np.array(x)))
+            s += np.exp(0.5 * np.dot(np.dot(np.array(x), Q), np.array(x)))
 
         return 1/s
 
@@ -69,7 +75,7 @@ class Ising_MOD:
 
         Q = self.parameters.reshape((self.dim, self.dim))
 
-        return self.normalize() * np.exp(np.dot(np.dot(np.array(x), Q), np.array(x)))
+        return self.normalize() * np.exp(0.5 * np.dot(np.dot(np.array(x), Q), np.array(x)))
 
 
 if __name__ == '__main__':
