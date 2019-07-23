@@ -19,3 +19,20 @@ def make_tens_symm(tens):
         symm_tens += tens.permute(x)
 
     return symm_tens/len(permutations)
+
+
+def cut_rth_slice(tens, r):
+    slices2d = []
+    slices1d = []
+    slices0d = []
+    for i in range(0, tens.dim()):
+        slice = torch.unbind(d, dim=i)[r]
+        slices2d.append(slice)
+        if ((-1)**i == 1):
+            slices1d.append(slice[1])
+        else:
+            slices1d.append(slice.t()[1])
+
+    slices0d.append(slice[r][r])
+
+    return slices2d, slices1d, slices0d
