@@ -3,6 +3,7 @@ import pandas as pd
 import torch
 from scipy.optimize import minimize
 import itertools
+from scipy.special import comb
 
 from tools import *
 
@@ -35,7 +36,7 @@ class Threedim_MOD:
     def funcvalue(self, x):
 
         x = torch.tensor(x)
-        return self.normalize() * np.exp(tens_vec_prod(x, self.parameters))
+        return self.normalize() * np.exp(vec_tens_prod(x, self.parameters))
 
     def normalize(self):
 
@@ -43,9 +44,26 @@ class Threedim_MOD:
         s = 0
 
         for x in li:
-            s += np.exp(tens_vec_prod(x, self.parameters))
+            s += np.exp(vec_tens_prod(x, self.parameters))
 
         return 1/s
+
+    def node_conditional(self, r, x):
+
+        slices = cut_rth_slice(self.parameters, r):
+
+        ind = 0
+        prod = 1
+        for slice in slices:
+            prod *= np.exp((-1)**(ind) * comb(self.dim, ind)
+                           * vec_tens_prod(x, slice))
+            ind += 1
+
+        return prod
+
+    def normalize_node_c(self, r, x):
+        li = list(itertools.product([0, 1], repeat=self.dim))
+        s = 0
 
     # def slicefunc(self):
     # def pseudoLH(self):

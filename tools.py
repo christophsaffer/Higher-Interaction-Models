@@ -22,17 +22,50 @@ def make_tens_symm(tens):
 
 
 def cut_rth_slice(tens, r):
-    slices2d = []
-    slices1d = []
-    slices0d = []
+    slices = []
+    slice = torch.unbind(tens, dim=r)
     for i in range(0, tens.dim()):
-        slice = torch.unbind(d, dim=i)[r]
-        slices2d.append(slice)
-        if ((-1)**i == 1):
-            slices1d.append(slice[1])
-        else:
-            slices1d.append(slice.t()[1])
+        slice = slice[r]
+        slices.insert(0, slice)
 
-    slices0d.append(slice[r][r])
+    return slices
 
-    return slices2d, slices1d, slices0d
+
+# def cut_rth_slice_ord3(tens, r):
+#     slices2d = []
+#     slices1d = []
+#     slices0d = []
+#     for i in range(0, tens.dim()):
+#         slice = torch.unbind(tens, dim=i)[r]
+#         slices2d.append(slice)
+#         if ((-1)**i == 1):
+#             slices1d.append(slice[r])
+#         else:
+#             slices1d.append(slice.t()[r])
+#
+#     slices0d.append(slice[r][r])
+#
+#     return slices2d, slices1d, slices0d
+#
+#
+# def cut_rth_slice(tens, r):
+#     slices = []
+#     for j in range(0, tens.dim()):
+#         for i in range(0, tens.dim()):
+#             slice = torch.unbind(tens, dim=i)[r]
+#             for k in range(0, j):
+#                 if ((-1)**i == 1):
+#                     slice = slice[r]
+#                 else:
+#                     slice = slice.t()[r]
+#             if not tensorinlist(slices, slice):
+#                 slices.append(slice)
+#     return slices
+
+
+def tensorinlist(list, tens):
+    for x in list:
+        if torch.equal(x, tens):
+            return True
+
+    return False
