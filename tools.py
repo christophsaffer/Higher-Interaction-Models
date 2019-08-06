@@ -24,13 +24,20 @@ def make_tens_symm(tens):
 
 
 def cut_rth_slice(tens, r):
+
     slices = []
-    slice = torch.unbind(tens, dim=r)
-    for i in range(0, tens.dim()):
-        slice = slice[r]
-        slices.insert(0, slice)
+    sli = tens
+    for k in range(0, tens.dim()):
+        sli = torch.unbind(tens, dim=0)[r]
+        slices.append(sli)
 
     return slices
+
+
+def nuclear_norm_tens(tens):
+
+    flattend = tens.reshape((len(tens), len(tens)**2))
+    return torch.nuclear_norm(flattend)
 
 
 # def cut_rth_slice_ord3(tens, r):

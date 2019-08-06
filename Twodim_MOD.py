@@ -4,7 +4,7 @@ from scipy.optimize import minimize
 import itertools
 
 
-class Ising_MOD:
+class Two_DIM:
 
     def __init__(self):
         self.name = "test"
@@ -80,5 +80,5 @@ class Ising_MOD:
 
 if __name__ == '__main__':
 
-    testobj = Ising_MOD()
+    testobj = Two_DIM()
     testobj.add_dataset("../cgmodelselection/unittest_data/py_D_s12d3l0.csv")

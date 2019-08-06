@@ -4,6 +4,8 @@ import torch
 from scipy.optimize import minimize
 import itertools
 from scipy.special import comb
+import time
+
 
 from tools import *
 
@@ -21,7 +23,7 @@ class Threedim_MOD:
 
     def add_dataset(self, path):
 
-        self.data = pd.read_csv(path)  # , index_col=0)
+        self.data = pd.read_csv(path, header=None)  # , index_col=0)
         self.dim = len(self.data.columns)
         self.len = len(self.data)
         self.cats = []
@@ -35,11 +37,13 @@ class Threedim_MOD:
             index += 1
 
     def funcvalue(self, x):
+        # probability density
 
         x = torch.tensor(x, dtype=torch.float32)
         return self.normalize() * np.exp(vec_tens_prod(x, self.parameters))
 
     def normalize(self):
+        # Normalisation of prob density
 
         li = list(itertools.product([0, 1], repeat=self.dim))
         s = 0
@@ -50,102 +54,135 @@ class Threedim_MOD:
 
         return 1/s
 
-    def node_conditional(self, Q, x, r):
+    def pseudoLH_correct(self, Q):
+        # Correct seriell version of pseudoLH function, with torch
+        s = 0
+        r0, r1, r2, r3 = 0, 0, 0, 0
+        for x in torch.tensor(np.array(self.data)):
 
-        slices = cut_rth_slice(Q, r)
+            for i in range(0, len(Q)):
+                slices = cut_rth_slice(Q, i)
+                slice1, slice2, slice3 = slices[0], slices[1], slices[2]
+                z1, n1 = 0, 0
+                z2, n2 = 0, 0
+                z3, n3 = slice1 * x[i], slice1
 
-        ind = 0
-        prod = 1
-        for slice in slices:
-            # print(slice)
-            # print(x)
-            # a = vec_tens_prod(x, slice)
-            # print(a)
-            prod *= torch.exp((-1)**(ind) * comb(self.dim, ind)
-                              * vec_tens_prod(x, slice))
+                for j in range(0, len(x)):
+                    z2 += slice2[j] * x[i] * x[j]
+                    n2 += slice2[j] * x[j]
 
-            ind += 1
+                for j in range(0, len(x)):
+                    for k in range(0, len(x)):
+                        z1 += slice3[j][k] * x[i] * x[j] * x[k]
+                        n1 += slice3[j][k] * x[j] * x[k]
 
-        return torch.log(prod)
+                # print(i, ": ", 3 * z1 - 3 * z2 + z3)
+                ergeb = 3 * z1 - 3 * z2 + z3 - \
+                    torch.log(1 + torch.exp(3 * n1 - 3 * n2 + n3))
+                s += ergeb
 
-    def normalize_node_c(self, Q, x, r):
-
-        slices = cut_rth_slice(Q, r)
-
-        x[r] = 1
-
-        ind = 0
-        prod = 1
-        for slice in slices:
-            prod *= torch.exp((-1)**(ind) * comb(self.dim, ind)
-                              * vec_tens_prod(x, slice))
-            ind += 1
-
-        return torch.log(1 + prod)
+        return -s/len(self.data)
 
     def pseudoLH(self, Q):
+        # Pseudo LH function vectorized, with torch
+
+        data = torch.tensor(np.array(self.data), dtype=torch.float32)
+        n, d = data.shape
         s = 0
+        ones = torch.ones(n)
+        zeros = torch.zeros((n, 1))
+        for r in range(0, len(Q)):
+            W = 0
+            slices = []
+            sli = Q
+            for k in range(0, Q.dim()):
+                sli = torch.unbind(sli, dim=0)[r]
+                slices.append(sli)
 
-        # Q = Q.reshape([self.dim] * self.order)
-        # Q = torch.tensor(Q, dtype=torch.float32)
+            slice2d, slice1d, slice0d = slices[0], slices[1], slices[2]
 
-        for x in torch.tensor(np.array(self.data)):
-            for i in range(0, Q.dim()):
-                s += self.node_conditional(Q, x, i) - \
-                    self.normalize_node_c(Q, x, i)
+            rth_col = data[:, r]
 
-        return -s
+            W += slice0d * ones
+            W -= 3 * torch.matmul(data, slice1d)
+            W += 3 * \
+                torch.sum(torch.mul(torch.matmul(data, slice2d), data), dim=1)
 
-    def modelselect(self):
+            W = torch.mul(
+                W, rth_col) - torch.logsumexp(torch.cat((zeros, W.reshape((n, 1))), dim=1), dim=1)
+            W = torch.sum(W)
+            s -= W
 
-        sol = minimize(self.pseudoLH, self.parameters, method='BFGS')
-        Q = sol['x'].reshape([self.dim] * self.order)
-        self.parameters = torch.tensor(Q, dtype=torch.float32)
+        return s/n
 
-        return sol
+    def regularization_term(self, Q):
+        # regularization of objective function with nuclear norm
+        return nuclear_norm_tens(Q)
+
+    def obj_func(self, Q):
+        # objective function
+
+        a = self.pseudoLH(Q)
+        b = 0.003 * torch.sum(torch.abs(Q))
+        c = 0.01 * self.regularization_term(Q)
+
+        # print("PLH: ", a)
+        # print("np.sum np.abs(S): ", b)
+        # print("Nuclearnorm(L): ", c)
+
+        return a + b + c
+
+    def obj_referenz_sol(self):
+        # Reference solution of Matlab (Frank) to test own pseudoLH
+        S = torch.tensor([[[-0.25846, 3.7425e-11, 0.16237, 0.71328], [3.7425e-11, 0.21068, -8.5876e-13, -6.938e-13], [0.16237, -8.5876e-13, 0.40328, -1.3673e-12], [0.71328, -6.938e-13, -1.3673e-12, 0.84142]], [[3.7425e-11, 0.21068, -8.5876e-13, -6.938e-13], [0.21068, -0.17064, 0.61465, 1.7338e-12], [-8.5876e-13, 0.61465, 0.61484, -8.5998e-13], [-6.938e-13, 1.7338e-12, -8.5998e-13, 1.2212e-12]], [
+            [0.16237, -8.5876e-13, 0.40328, -1.3673e-12], [-8.5876e-13, 0.61465, 0.61484, -8.5998e-13], [0.40328, 0.61484, -3.6873e-14, 2.0454e-12], [-1.3673e-12, -8.5998e-13, 2.0454e-12, 1.2685e-12]], [[0.71328, -6.938e-13, -1.3673e-12, 0.84142], [-6.938e-13, 1.7338e-12, -8.5998e-13, 1.2212e-12], [-1.3673e-12, -8.5998e-13, 2.0454e-12, 1.2685e-12], [0.84142, 1.2212e-12, 1.2685e-12, -1.4665]]], dtype=torch.float32)
+        L = torch.tensor([[[-1.6353, 0.68948, 0.68493, 0.66206], [0.68948, 0.5492, -0.56446, -0.48878], [0.68493, -0.56446, 0.4681, -0.61089], [0.66206, -0.48878, -0.61089, 0.56415]], [[0.68948, 0.5492, -0.56446, -0.48878], [0.5492, -1.2094, 0.5237, 0.43629], [-0.56446, 0.5237, 0.48314, -0.36059], [-0.48878, 0.43629, -0.36059, 0.4264]], [
+            [0.68493, -0.56446, 0.4681, -0.61089], [-0.56446, 0.5237, 0.48314, -0.36059], [0.4681, 0.48314, -0.67632, 0.41368], [-0.61089, -0.36059, 0.41368, 0.42124]], [[0.66206, -0.48878, -0.61089, 0.56415], [-0.48878, 0.43629, -0.36059, 0.4264], [-0.61089, -0.36059, 0.41368, 0.42124], [0.56415, 0.4264, 0.42124, -1.0905]]], dtype=torch.float32)
+
+        Q = torch.tensor([[[0.3149, 0.4252, 0.3869, 0.2432],
+                           [0.4252, 0.3411, 0.6358, 0.4482],
+                           [0.3869, 0.6358, 0.1546, 0.3821],
+                           [0.2432, 0.4482, 0.3821, 0.6282]],
+
+                          [[0.4252, 0.3411, 0.6358, 0.4482],
+                           [0.3411, 0.1269, 0.3575, 0.4499],
+                           [0.6358, 0.3575, 0.6116, 0.4635],
+                           [0.4482, 0.4499, 0.4635, 0.7458]],
+
+                          [[0.3869, 0.6358, 0.1546, 0.3821],
+                           [0.6358, 0.3575, 0.6116, 0.4635],
+                           [0.1546, 0.6116, 0.8924, 0.3595],
+                           [0.3821, 0.4635, 0.3595, 0.3807]],
+
+                          [[0.2432, 0.4482, 0.3821, 0.6282],
+                           [0.4482, 0.4499, 0.4635, 0.7458],
+                           [0.3821, 0.4635, 0.3595, 0.3807],
+                           [0.6282, 0.7458, 0.3807, 0.8537]]], dtype=torch.float32)
+
+        Q = S + L
+
+        start = time.time()
+        for i in range(0, 2000):
+            a = self.pseudoLH(Q)
+            b = 0.003 * torch.sum(torch.abs(S))
+            c = 0.01 * self.regularization_term(L)
+            d = a + b + c
+        ende = time.time()
+        print('{:5.3f}s'.format(ende-start))
+
+        # print("PLH: ", a)
+        # print("np.sum np.abs(S): ", b)
+        # print("Nuclearnorm(L): ", c)
+
+        return d
 
     def testoptimize(self, iter):
+        # Solution for objective function based on torch with gradient
 
         Q = torch.zeros([self.dim] * self.order,
                         dtype=torch.float32, requires_grad=True)
 
-        # with 1500 Iter #funval: -211.7291
-        # Q = torch.tensor([[[1.4767, -1.5002, -0.3283],
-        #                    [1.3241, -1.3061,  1.4472],
-        #                    [-1.0795,  1.2505, -0.7692]],
-        #
-        #                   [[0.0000,  0.0000,  1.4522],
-        #                    [-1.5002,  1.4517, -0.3284],
-        #                    [0.0000,  0.0000, -1.5913]],
-        #
-        #                   [[0.0000,  0.0000, -1.5002],
-        #                    [1.4693, -1.6198, -1.5188],
-        #                    [0.0000,  0.0000,  1.4522]]], dtype=torch.float32, requires_grad=True)
-
-        # Q = torch.tensor([[[0.0207, -0.0809, -0.0226,  0.0712],
-        #                    [0.0653, -0.0226,  0.0742,  0.0743],
-        #                    [-0.0844,  0.0748,  0.0378,  0.0669],
-        #                    [0.0727,  0.0626,  0.0680,  0.0731]],
-        #
-        #                   [[0.0000,  0.0000,  0.0743,  0.0000],
-        #                    [-0.0816, -0.0176,  0.0722, -0.0809],
-        #                    [0.0000,  0.0000, -0.0974,  0.0000],
-        #                    [0.0000,  0.0000,  0.0681,  0.0000]],
-        #
-        #                   [[0.0000,  0.0000, -0.0820,  0.0000],
-        #                    [0.0738,  0.0648, -0.0936,  0.0639],
-        #                    [0.0000,  0.0000, -0.0158,  0.0000],
-        #                    [0.0000,  0.0000, -0.0815,  0.0000]],
-        #
-        #                   [[0.0000,  0.0000,  0.0681,  0.0000],
-        #                    [0.0747, -0.0839,  0.0678,  0.0747],
-        #                    [0.0000,  0.0000, -0.0861,  0.0000],
-        #                    [0.0000,  0.0000,  0.0681,  0.0000]]],  dtype=torch.float32, requires_grad=True)
-
-        # Q = torch.tensor([[[-0.25846, 3.7425e-11, 0.16237, 0.71328], [3.7425e-11, 0.21068, -8.5876e-13, -6.938e-13], [0.16237, -8.5876e-13, 0.40328, -1.3673e-12], [0.71328, -6.938e-13, -1.3673e-12, 0.84142]], [[3.7425e-11, 0.21068, -8.5876e-13, -6.938e-13], [0.21068, -0.17064, 0.61465, 1.7338e-12], [-8.5876e-13, 0.61465, 0.61484, -8.5998e-13], [-6.938e-13, 1.7338e-12, -8.5998e-13, 1.2212e-12]],
-        # [[0.16237, -8.5876e-13, 0.40328, -1.3673e-12], [-8.5876e-13, 0.61465, 0.61484, -8.5998e-13], [0.40328, 0.61484, -3.6873e-14, 2.0454e-12], [-1.3673e-12, -8.5998e-13, 2.0454e-12, 1.2685e-12]], [[0.71328, -6.938e-13, -1.3673e-12, 0.84142], [-6.938e-13, 1.7338e-12, -8.5998e-13, 1.2212e-12], [-1.3673e-12, -8.5998e-13, 2.0454e-12, 1.2685e-12], [0.84142, 1.2212e-12, 1.2685e-12, -1.4665]]], dtype=torch.float32, requires_grad=True)
-
-        s = self.pseudoLH(Q)
+        s = self.obj_func(Q)
 
         optimizer = torch.optim.Adam([Q], lr=0.0001)
 
@@ -154,11 +191,11 @@ class Threedim_MOD:
             print(i)
             optimizer.zero_grad()
 
-            s = self.pseudoLH(Q)
+            s = self.obj_func(Q)
 
             s.sum().backward(retain_graph=True)
             optimizer.step()
-            #Q = make_tens_symm(Q)
+            # Q = make_tens_symm(Q)
 
         print(Q, s)
 
