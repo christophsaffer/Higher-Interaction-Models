@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import unittest
 import numpy as np
 import pandas as pd
@@ -66,6 +68,12 @@ class TestTools(unittest.TestCase):
         mod.dim = len(df.columns)
         mod.Q = torch.ones([mod.dim] * mod.order, dtype=torch.float32)
         self.assertTrue(float(mod.pseudoLH(mod.Q)) == 4.220917701721191)
+
+    def test_matlab_referenz_sol(self):
+        mod = MInteractionModel.MInteractionModel(order=3)
+        mod.matlab_referenz_sol()
+        self.assertTrue(float(mod.obj_func(mod.Q, mod.S, mod.L,
+                                           0.003, 0.01)) == 0.4503752589225769)
 
 
 if __name__ == '__main__':
