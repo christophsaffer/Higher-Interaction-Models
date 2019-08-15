@@ -1,0 +1,11 @@
+*
+
+!data/*
+
+!.gitignore
+!MInteractionModel.py
+!tools.py
+!unittests.py
+!README.md
+!fit_model_order2_script.py
+!Intro.pdf
