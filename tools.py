@@ -4,7 +4,7 @@ import itertools
 
 def vec_tens_prod(vec, tens):
 
-    vec = torch.tensor(vec, dtype=torch.float32)
+    #vec = torch.tensor(vec, dtype=torch.float32)
 
     for i in range(0, tens.dim()):
         tens = torch.matmul(vec, tens)
