@@ -1,3 +1,3 @@
-=== MInteractionModel ===
+# MInteractionModel
 
 Details are coming.
