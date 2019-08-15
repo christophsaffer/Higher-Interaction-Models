@@ -71,15 +71,19 @@ class MInteractionModel:
 
         return s/n
 
-    def modeltest(self):
+    def modeltest(self, count_data=True):
         li = list(itertools.product([0, 1], repeat=self.dim))
 
+        print("\nPrediction of the model:")
         for x in li:
-            print(x, ": ", round(float(self.funcvalue(x)), 5))
+            print("p(", x, ") = ", round(float(self.funcvalue(x)), 5))
 
-        print(self.data.groupby(self.data.columns.tolist(), as_index=False).size())
+        if (count_data):
+            print("\nFrequiencies in the dataset:")
+            print(self.data.groupby(
+                self.data.columns.tolist(), as_index=False).size())
 
-    def obj_func(self, Q, S, L, a, b):
+    def obj_func(self, Q, S=torch.zeros(1), L=torch.zeros(1), a=0, b=0):
         # + a * nuclear_norm_tens(Q) + b * torch.sum(torch.abs(Q))
         return self.pseudoLH(Q) + a * torch.sum(torch.abs(S)) + b * nuclear_norm_tens(L)
 
