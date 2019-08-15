@@ -1,5 +1,6 @@
 import torch
 import itertools
+import time
 
 
 def vec_tens_prod(vec, tens):
@@ -37,3 +38,12 @@ def nuclear_norm_tens(tens):
 
     flattend = tens.reshape((len(tens), len(tens)**2))
     return torch.nuclear_norm(flattend)
+
+
+def measure_time(iter, func, *args):
+    summe = 0
+    start = time.time()
+    for n in range(iter):
+        func(*args)
+    ende = time.time()
+    print('{:5.3f}s'.format(ende-start))

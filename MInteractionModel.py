@@ -80,3 +80,30 @@ class MInteractionModel:
             print(x, ": ", round(float(self.funcvalue(x)), 5))
 
         print(self.data.groupby(self.data.columns.tolist(), as_index=False).size())
+
+    def obj_func(self, Q):  # , a, b):
+        # + a * nuclear_norm_tens(Q) + b * torch.sum(torch.abs(Q))
+        return self.pseudoLH(Q)
+
+    def torch_optimize(self, iter, param=0.01):
+
+        Q = torch.ones([self.dim] * self.order,
+                       dtype=torch.float32, requires_grad=True)
+
+        s = self.obj_func(Q)
+
+        optimizer = torch.optim.ASGD([Q], lr=param)
+
+        s = 0
+        for i in range(iter):
+            if (i % 100 == 0):
+                print(i)
+            optimizer.zero_grad()
+
+            s = self.obj_func(Q)
+
+            s.sum().backward(retain_graph=True)
+            optimizer.step()
+        print(Q, s)
+
+        return Q
