@@ -44,9 +44,9 @@ class MInteractionModel:
         s = 0
         ones = torch.ones(n)
         zeros = torch.zeros((n, 1))
+        W = 0
 
         for r in range(0, len(Q)):
-            W = 0
             slices = cut_rth_slice(Q, r)
             rth_col = data[:, r]
 
@@ -58,7 +58,7 @@ class MInteractionModel:
                 W1 = W + 2 * torch.matmul(data, slices[1])
                 W2 = W + 2 * torch.matmul(data_denom, slices[1])
             else:
-                W += slices[0] * ones
+                W = slices[0] * ones
                 W -= 3 * torch.matmul(data, slices[1])
                 W += 3 * \
                     torch.sum(torch.mul(torch.matmul(
