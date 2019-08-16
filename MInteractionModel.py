@@ -21,10 +21,13 @@ class MInteractionModel:
         self.cats = []
         self.Q = torch.ones([self.dim] * self.order, dtype=torch.float32)
 
-    def funcvalue(self, x):
+    def funcvalue(self, x, normalize=True):
 
         x = torch.tensor(x, dtype=torch.float32)
-        return self.normalize() * torch.exp(vec_tens_prod(x, self.Q))
+        if normalize:
+            return torch.exp(vec_tens_prod(x, self.Q)) * self.normalize()
+        else:
+            return torch.exp(vec_tens_prod(x, self.Q))
 
     def normalize(self):
 
@@ -84,24 +87,14 @@ class MInteractionModel:
 
         return s/n
 
-    def modeltest(self, count_data=True, verbose=True):
+    def modeltest(self, normalize=True):  # , count_data=True, verbose=True):
         li = list(itertools.product([0, 1], repeat=self.dim))
-        results = []
-        if verbose:
-            print("\nPrediction of the model:")
+
+        print("x --- Frequiency in the dataset --- Prediction of the model")
+
         for x in li:
-            f = round(float(self.funcvalue(x)), 5)
-            results.append(f)
-            if verbose:
-                print("p(", x, ") = ", f)
-
-        if (count_data):
-            if verbose:
-                print("\nFrequiencies in the dataset:")
-                print(self.data.groupby(
-                    self.data.columns.tolist(), as_index=False).size())
-
-        return results
+            f = round(float(self.funcvalue(x, normalize)), 5)
+            print(x, " --- ", (self.data == x).all(axis=1).sum(), " --- p(x) = ", f)
 
     def obj_func(self, Q, S=torch.zeros(1), L=torch.zeros(1), a=0, b=0):
 
