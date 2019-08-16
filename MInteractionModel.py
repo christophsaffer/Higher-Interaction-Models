@@ -58,12 +58,25 @@ class MInteractionModel:
                 W1 = W + 2 * torch.matmul(data, slices[1])
                 W2 = W + 2 * torch.matmul(data_denom, slices[1])
             else:
+                data_denom = torch.tensor(
+                    np.array(self.data), dtype=torch.float32)
+                data_denom[:, r] = ones
+                # W = slices[0] * ones
+                # W -= 3 * torch.matmul(data, slices[1])
+                # W += 3 * \
+                #     torch.sum(torch.mul(torch.matmul(
+                #         data, slices[2]), data), dim=1)
+                # W1, W2 = W, W
+
                 W = slices[0] * ones
-                W -= 3 * torch.matmul(data, slices[1])
-                W += 3 * \
+                W1 = W - 3 * torch.matmul(data, slices[1])
+                W1 += 3 * \
                     torch.sum(torch.mul(torch.matmul(
                         data, slices[2]), data), dim=1)
-                W1, W2 = W, W
+                W2 = W - 3 * torch.matmul(data_denom, slices[1])
+                W2 += 3 * \
+                    torch.sum(torch.mul(torch.matmul(
+                        data_denom, slices[2]), data_denom), dim=1)
 
             W = torch.mul(
                 W1, rth_col) - torch.logsumexp(torch.cat((zeros, W2.reshape((n, 1))), dim=1), dim=1)
@@ -71,26 +84,33 @@ class MInteractionModel:
 
         return s/n
 
-    def modeltest(self, count_data=True):
+    def modeltest(self, count_data=True, verbose=True):
         li = list(itertools.product([0, 1], repeat=self.dim))
-
-        print("\nPrediction of the model:")
+        results = []
+        if verbose:
+            print("\nPrediction of the model:")
         for x in li:
-            print("p(", x, ") = ", round(float(self.funcvalue(x)), 5))
+            f = round(float(self.funcvalue(x)), 5)
+            results.append(f)
+            if verbose:
+                print("p(", x, ") = ", f)
 
         if (count_data):
-            print("\nFrequiencies in the dataset:")
-            print(self.data.groupby(
-                self.data.columns.tolist(), as_index=False).size())
+            if verbose:
+                print("\nFrequiencies in the dataset:")
+                print(self.data.groupby(
+                    self.data.columns.tolist(), as_index=False).size())
+
+        return results
 
     def obj_func(self, Q, S=torch.zeros(1), L=torch.zeros(1), a=0, b=0):
-        # + a * nuclear_norm_tens(Q) + b * torch.sum(torch.abs(Q))
+
         return self.pseudoLH(Q) + a * torch.sum(torch.abs(S)) + b * nuclear_norm_tens(L)
 
     def torch_optimize(self, iter, param=0.01):
 
-        Q = torch.ones([self.dim] * self.order,
-                       dtype=torch.float32, requires_grad=True)
+        Q = torch.zeros([self.dim] * self.order,
+                        dtype=torch.float32, requires_grad=True)
 
         s = self.obj_func(Q)
 
