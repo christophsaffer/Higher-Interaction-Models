@@ -64,12 +64,6 @@ class MInteractionModel:
                 data_denom = torch.tensor(
                     np.array(self.data), dtype=torch.float32)
                 data_denom[:, r] = ones
-                # W = slices[0] * ones
-                # W -= 3 * torch.matmul(data, slices[1])
-                # W += 3 * \
-                #     torch.sum(torch.mul(torch.matmul(
-                #         data, slices[2]), data), dim=1)
-                # W1, W2 = W, W
 
                 W = slices[0] * ones
                 W1 = W - 3 * torch.matmul(data, slices[1])
@@ -87,10 +81,11 @@ class MInteractionModel:
 
         return s/n
 
-    def modeltest(self, normalize=True):  # , count_data=True, verbose=True):
+    def modeltest(self, normalize=True):
         li = list(itertools.product([0, 1], repeat=self.dim))
 
-        print("x --- Frequiency in the dataset --- Prediction of the model")
+        print("x --- Frequiencies (total: ", len(self.data),
+              ") --- Prediction of the model")
 
         for x in li:
             f = round(float(self.funcvalue(x, normalize)), 5)
@@ -98,28 +93,41 @@ class MInteractionModel:
 
     def obj_func(self, Q, S=torch.zeros(1), L=torch.zeros(1), a=0, b=0):
 
-        return self.pseudoLH(Q) + a * torch.sum(torch.abs(S)) + b * nuclear_norm_tens(L)
+        # + a * torch.sum(torch.abs(S)) + b * nuclear_norm_tens(L)
+        return self.pseudoLH(Q)
 
-    def torch_optimize(self, iter, param=0.01):
+    def torch_optimize(self, iter, seedpoint=1, param=0.01):
 
-        Q = torch.zeros([self.dim] * self.order,
-                        dtype=torch.float32, requires_grad=True)
+        if torch.is_tensor(seedpoint):
+            Q = seedpoint
+        else:
+            Q = torch.zeros([self.dim] * self.order,
+                            dtype=torch.float32, requires_grad=True)
 
-        s = self.obj_func(Q)
+        s = self.obj_func(Q)  # , S=Q, a=0.05)
 
-        optimizer = torch.optim.ASGD([Q], lr=param)
+        #optimizer = torch.optim.ASGD([Q], lr=param)
+        #optimizer = torch.optim.Adam([Q], lr=param)
+        optimizer = torch.optim.SGD(
+            [Q], lr=param, momentum=0.5, nesterov=True)
 
-        s = 0
+        s, s_old = 0, 0
         for i in range(iter):
-            if (i % 100 == 0):
-                print(i)
             optimizer.zero_grad()
 
-            s = self.obj_func(Q)
+            s = self.obj_func(Q)  # , S=Q, a=0.05)
 
             s.sum().backward(retain_graph=True)
             optimizer.step()
-        print(Q, s)
+
+            if (i % 1000 == 0):
+                print(i)
+                if (s == s_old):
+                    print("equal.")
+                    break
+                s_old = s
+
+        print(Q, "\n", float(s))
 
         return Q
 
