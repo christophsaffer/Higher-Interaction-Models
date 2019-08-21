@@ -18,7 +18,17 @@ class MInteractionModel:
         self.data = pd.read_csv(path)  # , header=None)  # index_col=0)
         self.dim = len(self.data.columns)
         self.len = len(self.data)
-        self.cats = []
+
+        self.data_all = torch.tensor(np.array(self.data), dtype=torch.float32)
+
+        self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
+        self.data_comb = torch.tensor(
+            np.array(self.li_comb), dtype=torch.float32)
+
+        self.multiplicities = []
+        for x in self.data_comb:
+            self.multiplicities.append((self.data_all == x).all(axis=1).sum())
+
         self.Q = torch.ones([self.dim] * self.order, dtype=torch.float32)
 
     def funcvalue(self, x, normalize=True):
@@ -30,11 +40,9 @@ class MInteractionModel:
             return torch.exp(vec_tens_prod(x, self.Q))
 
     def normalize(self):
-
-        li = list(itertools.product([0, 1], repeat=self.dim))
         f = 0
 
-        for x in li:
+        for x in self.li_comb:
             f += torch.exp(vec_tens_prod(torch.tensor(x,
                                                       dtype=torch.float32), self.Q))
 
@@ -42,14 +50,18 @@ class MInteractionModel:
 
     def pseudoLH(self, Q):
 
-        data_all = torch.tensor(np.array(self.data), dtype=torch.float32)
-        li = list(itertools.product([0, 1], repeat=self.dim))
-        data = torch.tensor(np.array(li), dtype=torch.float32)
-        multiplicities = []
-        for x in data:
-            multiplicities.append((data_all == x).all(axis=1).sum())
+        # data_all = torch.tensor(np.array(self.data), dtype=torch.float32)
+        # li = list(itertools.product([0, 1], repeat=self.dim))
+        # data = torch.tensor(np.array(li), dtype=torch.float32)
+        # multiplicities = []
+        # for x in data:
+        #     multiplicities.append((data_all == x).all(axis=1).sum())
+        # multiplicities = torch.tensor(
+        #     np.array(multiplicities), dtype=torch.float32)
+
+        data = self.data_comb
         multiplicities = torch.tensor(
-            np.array(multiplicities), dtype=torch.float32)
+            np.array(self.multiplicities), dtype=torch.float32)
 
         n, d = data.shape
         s = 0
@@ -60,7 +72,8 @@ class MInteractionModel:
         for r in range(0, len(Q)):
             slices = cut_rth_slice(Q, r)
             rth_col = data[:, r]
-            data_denom = torch.tensor(np.array(li), dtype=torch.float32)
+            data_denom = torch.tensor(
+                np.array(self.li_comb), dtype=torch.float32)
             data_denom[:, r] = ones
 
             if self.order == 2:
@@ -82,15 +95,14 @@ class MInteractionModel:
                 W1, rth_col) - torch.logsumexp(torch.cat((zeros, W2.reshape((n, 1))), dim=1), dim=1)
             s -= torch.sum(W * multiplicities)
 
-        return s/len(data_all)
+        return s/self.len
 
     def modeltest(self, normalize=True):
-        li = list(itertools.product([0, 1], repeat=self.dim))
 
         print("x --- Frequiencies (total: ", len(self.data),
               ") --- Prediction of the model")
 
-        for x in li:
+        for x in self.li_comb:
             f = round(float(self.funcvalue(x, normalize)), 5)
             print(x, " --- ", (self.data == x).all(axis=1).sum(), " --- p(x) = ", f)
 
