@@ -96,7 +96,7 @@ class MInteractionModel:
         # + a * torch.sum(torch.abs(S)) + b * nuclear_norm_tens(L)
         return self.pseudoLH(Q)
 
-    def torch_optimize(self, iter, seedpoint=1, param=0.01):
+    def torch_optimize(self, iter, seedpoint=1, param=0.01, optim_alg="ASGD"):
 
         if torch.is_tensor(seedpoint):
             Q = seedpoint
@@ -105,11 +105,16 @@ class MInteractionModel:
                             dtype=torch.float32, requires_grad=True)
 
         s = self.obj_func(Q)  # , S=Q, a=0.05)
-
-        #optimizer = torch.optim.ASGD([Q], lr=param)
-        #optimizer = torch.optim.Adam([Q], lr=param)
-        optimizer = torch.optim.SGD(
-            [Q], lr=param, momentum=0.5, nesterov=True)
+        if optim_alg == "ASGD":
+            optimizer = torch.optim.ASGD([Q], lr=param)
+        elif optim_alg == "Adam":
+            optimizer = torch.optim.Adam([Q], lr=param)
+        elif optim_alg == "SGD":
+            optimizer = torch.optim.SGD(
+                [Q], lr=param, momentum=0.5, nesterov=True)
+        else:
+            print("Algorithm ", optim_alg, " does not exist, using ASGD ...")
+            optimizer = torch.optim.ASGD([Q], lr=param)
 
         s, s_old = 0, 0
         for i in range(iter):
@@ -125,6 +130,7 @@ class MInteractionModel:
                 if (s == s_old):
                     print("equal.")
                     break
+                #Q = make_tens_symm(Q)
                 s_old = s
 
         print(Q, "\n", float(s))
