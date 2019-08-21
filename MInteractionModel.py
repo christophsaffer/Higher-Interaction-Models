@@ -42,7 +42,15 @@ class MInteractionModel:
 
     def pseudoLH(self, Q):
 
-        data = torch.tensor(np.array(self.data), dtype=torch.float32)
+        data_all = torch.tensor(np.array(self.data), dtype=torch.float32)
+        li = list(itertools.product([0, 1], repeat=self.dim))
+        data = torch.tensor(np.array(li), dtype=torch.float32)
+        multiplicities = []
+        for x in data:
+            multiplicities.append((data_all == x).all(axis=1).sum())
+        multiplicities = torch.tensor(
+            np.array(multiplicities), dtype=torch.float32)
+
         n, d = data.shape
         s = 0
         ones = torch.ones(n)
@@ -52,19 +60,14 @@ class MInteractionModel:
         for r in range(0, len(Q)):
             slices = cut_rth_slice(Q, r)
             rth_col = data[:, r]
+            data_denom = torch.tensor(np.array(li), dtype=torch.float32)
+            data_denom[:, r] = ones
 
             if self.order == 2:
-                data_denom = torch.tensor(
-                    np.array(self.data), dtype=torch.float32)
-                data_denom[:, r] = ones
                 W = - slices[0] * ones
                 W1 = W + 2 * torch.matmul(data, slices[1])
                 W2 = W + 2 * torch.matmul(data_denom, slices[1])
             else:
-                data_denom = torch.tensor(
-                    np.array(self.data), dtype=torch.float32)
-                data_denom[:, r] = ones
-
                 W = slices[0] * ones
                 W1 = W - 3 * torch.matmul(data, slices[1])
                 W1 += 3 * \
@@ -77,9 +80,9 @@ class MInteractionModel:
 
             W = torch.mul(
                 W1, rth_col) - torch.logsumexp(torch.cat((zeros, W2.reshape((n, 1))), dim=1), dim=1)
-            s -= torch.sum(W)
+            s -= torch.sum(W * multiplicities)
 
-        return s/n
+        return s/len(data_all)
 
     def modeltest(self, normalize=True):
         li = list(itertools.product([0, 1], repeat=self.dim))
