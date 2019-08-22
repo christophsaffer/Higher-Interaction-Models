@@ -50,15 +50,6 @@ class MInteractionModel:
 
     def pseudoLH(self, Q):
 
-        # data_all = torch.tensor(np.array(self.data), dtype=torch.float32)
-        # li = list(itertools.product([0, 1], repeat=self.dim))
-        # data = torch.tensor(np.array(li), dtype=torch.float32)
-        # multiplicities = []
-        # for x in data:
-        #     multiplicities.append((data_all == x).all(axis=1).sum())
-        # multiplicities = torch.tensor(
-        #     np.array(multiplicities), dtype=torch.float32)
-
         data = self.data_comb
         multiplicities = torch.tensor(
             np.array(self.multiplicities), dtype=torch.float32)
@@ -97,14 +88,30 @@ class MInteractionModel:
 
         return s/self.len
 
-    def modeltest(self, normalize=True):
+    def new_pseudoLH(self):
 
-        print("x --- Frequiencies (total: ", len(self.data),
-              ") --- Prediction of the model")
-
+        s = 0
         for x in self.li_comb:
             f = round(float(self.funcvalue(x, normalize)), 5)
-            print(x, " --- ", (self.data == x).all(axis=1).sum(), " --- p(x) = ", f)
+            frequ = (self.data == x).all(axis=1).sum()
+            #print(x, " --- ", frequ, " --- p(x) = ", f)
+            s += np.abs(f - frequ/self.len)
+
+        return s
+
+    def modeltest(self, normalize=True):
+
+        print("x --- Frequiencies (total: ", self.len,
+              ") --- Prediction of the model")
+
+        s = 0
+        for x in self.li_comb:
+            f = round(float(self.funcvalue(x, normalize)), 5)
+            frequ = (self.data == x).all(axis=1).sum()
+            print(x, " --- ", frequ, " --- p(x) = ", f)
+            s += np.abs(f - frequ/self.len)
+
+        print("Deviation: ", s/len(self.li_comb))
 
     def obj_func(self, Q, S=torch.zeros(1), L=torch.zeros(1), a=0, b=0):
 
@@ -145,12 +152,40 @@ class MInteractionModel:
                 if (s == s_old):
                     print("equal.")
                     break
-                #Q = make_tens_symm(Q)
                 s_old = s
 
-        print(Q, "\n", float(s))
+        #print(Q, "\n", float(s))
 
         return Q
+
+    def torch_optimize_with_symmetry(self, outer_iter, iter, seedpoint=1, param=0.01, dec_rate=1, optim_alg="ASGD"):
+
+        Q = torch.zeros([self.dim] * self.order,
+                        dtype=torch.float32, requires_grad=True)
+
+        best_fval = np.inf
+        current_tens = Q
+        param_start = param
+        for i in range(outer_iter):
+            print("Outer Index: ", i, " LR: ",
+                  param, " Inner_max_iter: ", iter)
+            Q = self.torch_optimize(
+                iter=iter, seedpoint=current_tens, param=param, optim_alg=optim_alg)
+
+            current_tens = make_tens_super_symm(Q.clone())
+            current_fval = float(self.pseudoLH(current_tens))
+            print(current_fval - best_fval)
+            if (current_fval < best_fval):
+                best_fval = current_fval
+                self.Q = current_tens.clone()
+                print(self.Q)
+                print(best_fval)
+            else:
+                param -= dec_rate
+                if param < 0.00000001:
+                    param = param_start
+
+        return self.Q
 
     def matlab_referenz_sol(self):
 

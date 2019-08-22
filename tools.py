@@ -14,13 +14,54 @@ def vec_tens_prod(vec, tens):
 
 
 def make_tens_symm(tens):
-    # tens = torch.tensor(tens, dtype=torch.float64)
     symm_tens = torch.zeros([len(tens)] * tens.dim())
     permutations = list(itertools.permutations(range(0, tens.dim())))
     for x in permutations:
         symm_tens += tens.permute(x)
 
-    return symm_tens/len(permutations)
+    symm_tens = symm_tens/len(permutations)
+
+    return symm_tens.clone().detach().requires_grad_(True)
+
+
+def make_tens_super_symm(tens):
+    product = list(itertools.product(range(len(tens)), repeat=tens.dim()))
+    completo = []
+    for x in product:
+        permutations = list(itertools.permutations(x))
+        completo.append(set(permutations))
+    output = set()
+    for x in completo:
+        output.add(frozenset(x))
+
+    result = []
+    combs = []
+    for y in output:
+        temp = []
+        z = list(y)
+        for x in y:
+            temp.append(set(x))
+
+        combs.append(tuple(temp[0]))
+        result.append(z)
+    combs_new = list(set(combs))
+    final_list = []
+    for x in combs_new:
+        li = []
+        for i in range(len(result)):
+            if x == combs[i]:
+                li.append(result[i])
+
+        final_list.append(sum(li, []))
+
+    for multi in final_list:
+        s = 0
+        for x in multi:
+            s += tens[x]
+        for x in multi:
+            tens[x] = s/len(multi)
+
+    return tens.clone().detach().requires_grad_(True)
 
 
 def cut_rth_slice(tens, r):
