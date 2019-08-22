@@ -136,25 +136,30 @@ class MInteractionModel:
             s.sum().backward(retain_graph=True)
             optimizer.step()
 
-            if (i % 1000 == 0):
-                print(i)
-                if (s == s_old):
-                    print("equal.")
-                    break
-                s_old = s
+            # if (i % 1000 == 0):
+            #     print(i)
+            #     if (s == s_old):
+            #         print("equal.")
+            #         break
+            #     s_old = s
 
         #print(Q, "\n", float(s))
 
         return Q
 
-    def torch_optimize_with_symmetry(self, outer_iter, iter, seedpoint=1, param=0.01, dec_rate=1, optim_alg="ASGD"):
+    def torch_optimize_with_symmetry(self, outer_iter, iter, seedpoint=1, optim_alg="ASGD"):
 
-        Q = torch.zeros([self.dim] * self.order,
-                        dtype=torch.float32, requires_grad=True)
-
+        if torch.is_tensor(seedpoint):
+            Q = seedpoint
+        else:
+            Q = torch.zeros([self.dim] * self.order,
+                            dtype=torch.float32, requires_grad=True)
         best_fval = np.inf
         current_tens = Q
-        param_start = param
+        param_list = [0.7, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.07, 0.05, 0.025, 00.01,
+                      0.005, 0.001, 0.0001, 0.00001, 0.000001, 0.0000001, 0.00000001, 0.000000001]
+        param_i, param = 1, param_list[0]
+        breakup = False
         for i in range(outer_iter):
             print("Outer Index: ", i, " LR: ",
                   param, " Inner_max_iter: ", iter)
@@ -164,15 +169,22 @@ class MInteractionModel:
             current_tens = make_tens_super_symm(Q.clone())
             current_fval = float(self.pseudoLH(current_tens))
             print(current_fval - best_fval)
-            if (current_fval < best_fval):
+            if (current_fval <= best_fval):
                 best_fval = current_fval
                 self.Q = current_tens.clone()
                 print(self.Q)
                 print(best_fval)
+                breakup = False
             else:
-                param -= dec_rate
-                if param < 0.00000001:
-                    param = param_start
+                if param_i < (len(param_list)-1):
+                    param_i += 1
+                else:
+                    param_i = 1
+                    if (breakup):
+                        break
+                    breakup = True
+
+                param = param_list[param_i]
 
         return self.Q
 
