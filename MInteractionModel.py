@@ -35,16 +35,16 @@ class MInteractionModel:
 
         x = torch.tensor(x, dtype=torch.float32)
         if normalize:
-            return torch.exp(vec_tens_prod(x, self.Q)) * self.normalize()
+            return torch.exp(vec_tens_prod(x, self.Q)) * self.normalize(self.Q)
         else:
             return torch.exp(vec_tens_prod(x, self.Q))
 
-    def normalize(self):
+    def normalize(self, Q):
         f = 0
 
         for x in self.li_comb:
             f += torch.exp(vec_tens_prod(torch.tensor(x,
-                                                      dtype=torch.float32), self.Q))
+                                                      dtype=torch.float32), Q))
 
         return 1/f
 
@@ -88,17 +88,6 @@ class MInteractionModel:
 
         return s/self.len
 
-    def new_pseudoLH(self):
-
-        s = 0
-        for x in self.li_comb:
-            f = round(float(self.funcvalue(x, normalize)), 5)
-            frequ = (self.data == x).all(axis=1).sum()
-            #print(x, " --- ", frequ, " --- p(x) = ", f)
-            s += np.abs(f - frequ/self.len)
-
-        return s
-
     def modeltest(self, normalize=True):
 
         print("x --- Frequiencies (total: ", self.len,
@@ -106,7 +95,7 @@ class MInteractionModel:
 
         s = 0
         for x in self.li_comb:
-            f = round(float(self.funcvalue(x, normalize)), 5)
+            f = round(float(self.funcvalue(x)), 5)
             frequ = (self.data == x).all(axis=1).sum()
             print(x, " --- ", frequ, " --- p(x) = ", f)
             s += np.abs(f - frequ/self.len)
