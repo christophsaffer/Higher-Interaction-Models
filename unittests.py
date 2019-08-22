@@ -50,30 +50,24 @@ class TestTools(unittest.TestCase):
             self.vec, self.tens), self.vec_tens_prod))
 
     # TODO: Test for cut_rth_slice
-
-    def test_pseudoLH_2DTensor(self):
-        mod = MInteractionModel.MInteractionModel(order=2)
-        arr = np.array([[1, 0, 1, 0], [1, 0, 0, 1]])
-        df = pd.DataFrame(np.rot90(arr), columns=("X1", "X2"))
-        mod.data = df
-        mod.Q = torch.tensor([[1, 2], [2, 3]], dtype=torch.float32)
-        self.assertTrue(float(mod.pseudoLH(mod.Q)) == 4.184737682342529)
-
-    def test_pseudoLH_3DTensor(self):
-        mod = MInteractionModel.MInteractionModel(order=3)
-        arr = np.array([[1, 0, 1, 0, 1, 0, 1, 0], [1, 1, 1, 1,
-                                                   0, 0, 0, 0], [1, 1, 0, 0, 1, 1, 0, 0]])
-        df = pd.DataFrame(np.rot90(arr), columns=("X1", "X2", "X3"))
-        mod.data = df
-        mod.dim = len(df.columns)
-        mod.Q = torch.ones([mod.dim] * mod.order, dtype=torch.float32)
-        self.assertTrue(float(mod.pseudoLH(mod.Q)) == 12.98631477355957)
-
-    # def test_matlab_referenz_sol(self):
+    #
+    # def test_pseudoLH_2DTensor(self):
+    #     mod = MInteractionModel.MInteractionModel(order=2)
+    #     arr = np.array([[1, 0, 1, 0], [1, 0, 0, 1]])
+    #     df = pd.DataFrame(np.rot90(arr), columns=("X1", "X2"))
+    #     mod.data = df
+    #     mod.Q = torch.tensor([[1, 2], [2, 3]], dtype=torch.float32)
+    #     self.assertTrue(float(mod.pseudoLH(mod.Q)) == 4.184737682342529)
+    #
+    # def test_pseudoLH_3DTensor(self):
     #     mod = MInteractionModel.MInteractionModel(order=3)
-    #     mod.matlab_referenz_sol()
-    #     self.assertTrue(float(mod.obj_func(mod.Q, mod.S, mod.L,
-    #                                        0.003, 0.01)) == 0.4503752589225769)
+    #     arr = np.array([[1, 0, 1, 0, 1, 0, 1, 0], [1, 1, 1, 1,
+    #                                                0, 0, 0, 0], [1, 1, 0, 0, 1, 1, 0, 0]])
+    #     df = pd.DataFrame(np.rot90(arr), columns=("X1", "X2", "X3"))
+    #     mod.data = df
+    #     mod.dim = len(df.columns)
+    #     mod.Q = torch.ones([mod.dim] * mod.order, dtype=torch.float32)
+    #     self.assertTrue(float(mod.pseudoLH(mod.Q)) == 12.98631477355957)
 
 
 if __name__ == '__main__':
