@@ -5,8 +5,6 @@ import time
 
 def vec_tens_prod(vec, tens):
 
-    #vec = torch.tensor(vec, dtype=torch.float32)
-
     for i in range(0, tens.dim()):
         tens = torch.matmul(vec, tens)
 
@@ -21,7 +19,7 @@ def make_tens_symm(tens):
 
     symm_tens = symm_tens/len(permutations)
 
-    return symm_tens.clone().detach().requires_grad_(True)
+    return symm_tens
 
 
 def make_tens_super_symm(tens):
@@ -54,14 +52,15 @@ def make_tens_super_symm(tens):
 
         final_list.append(sum(li, []))
 
+    symm_tens = torch.zeros([len(tens)] * tens.dim())
     for multi in final_list:
         s = 0
         for x in multi:
             s += tens[x]
         for x in multi:
-            tens[x] = s/len(multi)
+            symm_tens[x] = s/len(multi)
 
-    return tens.clone().detach().requires_grad_(True)
+    return symm_tens
 
 
 def cut_rth_slice(tens, r):
@@ -77,8 +76,11 @@ def cut_rth_slice(tens, r):
 
 def nuclear_norm_tens(tens):
 
-    flattend = tens.reshape((len(tens), len(tens)**2))
-    return torch.nuclear_norm(flattend)
+    if tens.dim() > 2:
+        flattend = tens.reshape((len(tens), len(tens)**2))
+        return torch.nuclear_norm(flattend)
+    else:
+        return torch.nuclear_norm(tens)
 
 
 def measure_time(iter, func, *args):
@@ -90,10 +92,10 @@ def measure_time(iter, func, *args):
     print('{:5.3f}s'.format(ende-start))
 
 
-def set_values_to_tensor(q):
-    if len(q) == 7:
-        q1, q2, q3, q12, q13, q23, q123 = q[0], q[1], q[2], q[3], q[4], q[5], q[6]
-        tens = torch.tensor([[[q1, q12, q13], [q12, q12, q123], [q13, q123, q13]], [[q12, q12, q123], [q12, q2, q23], [
-                            q123, q23, q23]], [[q13, q123, q13], [q123, q23, q23], [q13, q23, q3]]], dtype=torch.float32, requires_grad=True)
-        return tens
-    return q
+# def set_values_to_tensor(q):
+#     if len(q) == 7:
+#         q1, q2, q3, q12, q13, q23, q123 = q[0], q[1], q[2], q[3], q[4], q[5], q[6]
+#         tens = torch.tensor([[[q1, q12, q13], [q12, q12, q123], [q13, q123, q13]], [[q12, q12, q123], [q12, q2, q23], [
+#                             q123, q23, q23]], [[q13, q123, q13], [q123, q23, q23], [q13, q23, q3]]], dtype=torch.float32, requires_grad=True)
+#         return tens
+#     return q

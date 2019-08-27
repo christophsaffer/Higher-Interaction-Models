@@ -4,7 +4,7 @@ import pandas as pd
 import itertools
 from scipy.special import comb
 
-from tools import *
+import tools
 
 
 class MInteractionModel:
@@ -35,16 +35,16 @@ class MInteractionModel:
 
         x = torch.tensor(x, dtype=torch.float32)
         if normalize:
-            return torch.exp(vec_tens_prod(x, self.Q)) * self.normalize(self.Q)
+            return torch.exp(tools.vec_tens_prod(x, self.Q)) * self.normalize(self.Q)
         else:
-            return torch.exp(vec_tens_prod(x, self.Q))
+            return torch.exp(tools.vec_tens_prod(x, self.Q))
 
     def normalize(self, Q):
         f = 0
 
         for x in self.li_comb:
-            f += torch.exp(vec_tens_prod(torch.tensor(x,
-                                                      dtype=torch.float32), Q))
+            f += torch.exp(tools.vec_tens_prod(torch.tensor(x,
+                                                            dtype=torch.float32), Q))
 
         return 1/f
 
@@ -61,7 +61,7 @@ class MInteractionModel:
         W = 0
 
         for r in range(0, len(Q)):
-            slices = cut_rth_slice(Q, r)
+            slices = tools.cut_rth_slice(Q, r)
             rth_col = data[:, r]
             data_denom = torch.tensor(
                 np.array(self.li_comb), dtype=torch.float32)
@@ -104,10 +104,11 @@ class MInteractionModel:
 
     def obj_func(self, Q, S=torch.zeros(1), L=torch.zeros(1), a=0, b=0):
 
-        # + a * torch.sum(torch.abs(S)) + b * nuclear_norm_tens(L)
-        return self.pseudoLH(Q)
+        T = tools.make_tens_super_symm(Q)
 
-    def torch_optimize(self, iter, seedpoint=1, param=0.01, optim_alg="ASGD"):
+        return self.pseudoLH(T) + a * torch.sum(torch.abs(T)) + b * tools.nuclear_norm_tens(T)
+
+    def torch_optimize(self, iter, seedpoint=1, param=0.01, optim_alg="ASGD", a=0, b=0):
 
         if torch.is_tensor(seedpoint):
             Q = seedpoint
@@ -115,7 +116,7 @@ class MInteractionModel:
             Q = torch.zeros([self.dim] * self.order,
                             dtype=torch.float32, requires_grad=True)
 
-        s = self.obj_func(Q)  # , S=Q, a=0.05)
+        s = self.obj_func(Q, a=a, b=b)
         if optim_alg == "ASGD":
             optimizer = torch.optim.ASGD([Q], lr=param)
         elif optim_alg == "Adam":
@@ -127,73 +128,22 @@ class MInteractionModel:
             print("Algorithm ", optim_alg, " does not exist, using ASGD ...")
             optimizer = torch.optim.ASGD([Q], lr=param)
 
-        s, s_old = 0, 0
+        s, s_previous = 0, 0
         for i in range(iter):
             optimizer.zero_grad()
 
-            s = self.obj_func(Q)  # , S=Q, a=0.05)
+            s = self.obj_func(Q, a=a, b=b)
 
             s.sum().backward(retain_graph=True)
             optimizer.step()
 
-            # if (i % 1000 == 0):
-            #     print(i)
-            #     if (s == s_old):
-            #         print("equal.")
-            #         break
-            #     s_old = s
-
-        #print(Q, "\n", float(s))
+            self.temp = Q.clone()
+            if (i % 1000 == 0):
+                print("Iter =", i)
+                print(Q, "\nFunVal:", float(s))
+                if (s == s_previous):
+                    print("No more improvment.. stop.")
+                    break
+                s_previous = s
 
         return Q
-
-    def torch_optimize_with_symmetry(self, outer_iter, iter, seedpoint=1, optim_alg="ASGD"):
-
-        if torch.is_tensor(seedpoint):
-            Q = seedpoint
-        else:
-            Q = torch.zeros([self.dim] * self.order,
-                            dtype=torch.float32, requires_grad=True)
-        best_fval = np.inf
-        current_tens = Q
-        param_list = [0.7, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.07, 0.05, 0.025, 00.01,
-                      0.005, 0.001, 0.0001, 0.00001, 0.000001, 0.0000001, 0.00000001, 0.000000001]
-        param_i, param = 1, param_list[0]
-        breakup = False
-        for i in range(outer_iter):
-            print("Outer Index: ", i, " LR: ",
-                  param, " Inner_max_iter: ", iter)
-            Q = self.torch_optimize(
-                iter=iter, seedpoint=current_tens, param=param, optim_alg=optim_alg)
-
-            current_tens = make_tens_super_symm(Q.clone())
-            current_fval = float(self.pseudoLH(current_tens))
-            print(current_fval - best_fval)
-            if (current_fval <= best_fval):
-                best_fval = current_fval
-                self.Q = current_tens.clone()
-                print(self.Q)
-                print(best_fval)
-                breakup = False
-            else:
-                if param_i < (len(param_list)-1):
-                    param_i += 1
-                else:
-                    param_i = 1
-                    if (breakup):
-                        break
-                    breakup = True
-
-                param = param_list[param_i]
-
-        return self.Q
-
-    def matlab_referenz_sol(self):
-
-        self.add_dataset("../referenz_data.csv")
-        self.S = torch.tensor([[[-0.25846, 3.7425e-11, 0.16237, 0.71328], [3.7425e-11, 0.21068, -8.5876e-13, -6.938e-13], [0.16237, -8.5876e-13, 0.40328, -1.3673e-12], [0.71328, -6.938e-13, -1.3673e-12, 0.84142]], [[3.7425e-11, 0.21068, -8.5876e-13, -6.938e-13], [0.21068, -0.17064, 0.61465, 1.7338e-12], [-8.5876e-13, 0.61465, 0.61484, -8.5998e-13], [-6.938e-13, 1.7338e-12, -8.5998e-13, 1.2212e-12]], [
-            [0.16237, -8.5876e-13, 0.40328, -1.3673e-12], [-8.5876e-13, 0.61465, 0.61484, -8.5998e-13], [0.40328, 0.61484, -3.6873e-14, 2.0454e-12], [-1.3673e-12, -8.5998e-13, 2.0454e-12, 1.2685e-12]], [[0.71328, -6.938e-13, -1.3673e-12, 0.84142], [-6.938e-13, 1.7338e-12, -8.5998e-13, 1.2212e-12], [-1.3673e-12, -8.5998e-13, 2.0454e-12, 1.2685e-12], [0.84142, 1.2212e-12, 1.2685e-12, -1.4665]]], dtype=torch.float32)
-        self.L = torch.tensor([[[-1.6353, 0.68948, 0.68493, 0.66206], [0.68948, 0.5492, -0.56446, -0.48878], [0.68493, -0.56446, 0.4681, -0.61089], [0.66206, -0.48878, -0.61089, 0.56415]], [[0.68948, 0.5492, -0.56446, -0.48878], [0.5492, -1.2094, 0.5237, 0.43629], [-0.56446, 0.5237, 0.48314, -0.36059], [-0.48878, 0.43629, -0.36059, 0.4264]], [
-            [0.68493, -0.56446, 0.4681, -0.61089], [-0.56446, 0.5237, 0.48314, -0.36059], [0.4681, 0.48314, -0.67632, 0.41368], [-0.61089, -0.36059, 0.41368, 0.42124]], [[0.66206, -0.48878, -0.61089, 0.56415], [-0.48878, 0.43629, -0.36059, 0.4264], [-0.61089, -0.36059, 0.41368, 0.42124], [0.56415, 0.4264, 0.42124, -1.0905]]], dtype=torch.float32)
-
-        self.Q = self.S + self.L
