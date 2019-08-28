@@ -30,6 +30,7 @@ class MInteractionModel:
             self.multiplicities.append((self.data_all == x).all(axis=1).sum())
 
         self.Q = torch.ones([self.dim] * self.order, dtype=torch.float32)
+        self.symm_idx = tools.get_str_symm_idx_lst(self.Q)
 
     def funcvalue(self, x, normalize=True):
 
@@ -104,9 +105,9 @@ class MInteractionModel:
 
     def obj_func(self, Q, S=torch.zeros(1), L=torch.zeros(1), a=0, b=0):
 
-        T = tools.make_tens_super_symm(Q)
+        Q = tools.make_tens_str_symm(Q.clone(), self.symm_idx)
 
-        return self.pseudoLH(T) + a * torch.sum(torch.abs(T)) + b * tools.nuclear_norm_tens(T)
+        return self.pseudoLH(Q) + a * torch.sum(torch.abs(Q)) + b * tools.nuclear_norm_tens(Q)
 
     def torch_optimize(self, iter, seedpoint=1, param=0.01, optim_alg="ASGD", a=0, b=0):
 
@@ -128,8 +129,8 @@ class MInteractionModel:
             print("Algorithm ", optim_alg, " does not exist, using ASGD ...")
             optimizer = torch.optim.ASGD([Q], lr=param)
 
-        s, s_previous = 0, 0
-        for i in range(iter):
+        s, s_old = 0, 0
+        for i in range(1, iter):
             optimizer.zero_grad()
 
             s = self.obj_func(Q, a=a, b=b)
@@ -138,12 +139,12 @@ class MInteractionModel:
             optimizer.step()
 
             self.temp = Q.clone()
-            if (i % 1000 == 0):
+            if (i % 500 == 0):
                 print("Iter =", i)
                 print(Q, "\nFunVal:", float(s))
-                if (s == s_previous):
+                if (s == s_old):
                     print("No more improvment.. stop.")
                     break
-                s_previous = s
+                s_old = s
 
         return Q

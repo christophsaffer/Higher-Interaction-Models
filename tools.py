@@ -22,45 +22,56 @@ def make_tens_symm(tens):
     return symm_tens
 
 
-def make_tens_super_symm(tens):
-    product = list(itertools.product(range(len(tens)), repeat=tens.dim()))
-    completo = []
-    for x in product:
+def get_str_symm_idx_lst(tens):
+    # Get the list of lists of strongly symmetric indexes of the input tensor
+
+    # Get all indexes of input tensor, i.e. order=3, dim=4 [(000), (100), ..., (333)]
+    prod = list(itertools.product(range(len(tens)), repeat=tens.dim()))
+
+    # Collect indexes with same numbers, i.e. order=3, dim=4 {{(1,2,2), (2,1,2), (2,2,1)},{(1,1,1)}, ...}
+    # Using 'set', 'frozenset' instead of list because duplicate entries are not possible
+    prod_grouped_set = set()
+    for x in prod:
         permutations = list(itertools.permutations(x))
-        completo.append(set(permutations))
-    output = set()
-    for x in completo:
-        output.add(frozenset(x))
+        prod_grouped_set.add(frozenset(permutations))
 
-    result = []
+    # Convert the set of frozensets (prod_grouped_set) to a list of lists (prod_grouped)
+    prod_grouped = []
     combs = []
-    for y in output:
-        temp = []
-        z = list(y)
-        for x in y:
-            temp.append(set(x))
+    for y in prod_grouped_set:
+        combs.append(tuple(set(list(y)[0])))
+        prod_grouped.append(list(y))
 
-        combs.append(tuple(temp[0]))
-        result.append(z)
-    combs_new = list(set(combs))
-    final_list = []
-    for x in combs_new:
+    # Get possible combinations of unique indexes
+    combs_unique = list(set(combs))
+
+    # Create grouped indexes list from prod_group and combs_unique
+    grouped_idx = []
+    for x in combs_unique:
         li = []
-        for i in range(len(result)):
+        for i in range(len(prod_grouped)):
             if x == combs[i]:
-                li.append(result[i])
+                li.append(prod_grouped[i])
 
-        final_list.append(sum(li, []))
+        grouped_idx.append(sum(li, []))
 
-    symm_tens = torch.zeros([len(tens)] * tens.dim())
-    for multi in final_list:
-        s = 0
-        for x in multi:
-            s += tens[x]
-        for x in multi:
-            symm_tens[x] = s/len(multi)
+    return grouped_idx
 
-    return symm_tens
+
+def make_tens_str_symm(tens, grouped_idx=0):
+    # Make input tens strongly symmetric, grouped_idx from get_str_symm_idx_lst function necessary
+
+    if grouped_idx == 0:
+        grouped_idx = get_str_symm_idx_lst(tens)
+
+    for symm_idx in grouped_idx:
+        mean = 0
+        for x in symm_idx:
+            mean += tens[x]
+        mean /= len(symm_idx)
+        for x in symm_idx:
+            tens[x] = mean
+    return tens
 
 
 def cut_rth_slice(tens, r):
