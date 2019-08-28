@@ -20,7 +20,7 @@ class MInteractionModel:
         self.len = len(self.data)
         self.data_all = torch.tensor(np.array(self.data), dtype=torch.float32)
 
-        if self.len > 2**self.dim:
+        if (self.len > 2**self.dim) & (self.dim < 14):
             print("Use pseudoLH with multiplicities as pseudoLH.")
             self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
             self.data_comb = torch.tensor(

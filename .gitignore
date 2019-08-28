@@ -1,7 +1,5 @@
 *
 
-!data/*
-
 !.gitignore
 !MInteractionModel.py
 !tools.py
