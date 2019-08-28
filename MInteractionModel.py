@@ -18,16 +18,24 @@ class MInteractionModel:
         self.data = pd.read_csv(path)  # , header=None)  # index_col=0)
         self.dim = len(self.data.columns)
         self.len = len(self.data)
-
         self.data_all = torch.tensor(np.array(self.data), dtype=torch.float32)
 
-        self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
-        self.data_comb = torch.tensor(
-            np.array(self.li_comb), dtype=torch.float32)
+        if self.len > 2**self.dim:
+            print("Use pseudoLH with multiplicities as pseudoLH.")
+            self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
+            self.data_comb = torch.tensor(
+                np.array(self.li_comb), dtype=torch.float32)
 
-        self.multiplicities = []
-        for x in self.data_comb:
-            self.multiplicities.append((self.data_all == x).all(axis=1).sum())
+            self.multiplicities = []
+            for x in self.data_comb:
+                self.multiplicities.append(
+                    (self.data_all == x).all(axis=1).sum())
+
+            self.pseudoLH = self.pseudoLH_multiplicities
+
+        else:
+            print("Use pseudoLH with all data as pseudoLH.")
+            self.pseudoLH = self.pseudoLH_all_data
 
         self.Q = torch.ones([self.dim] * self.order, dtype=torch.float32)
         self.symm_idx = tools.get_str_symm_idx_lst(self.Q)
@@ -49,23 +57,20 @@ class MInteractionModel:
 
         return 1/f
 
-    def pseudoLH(self, Q):
+    def pseudoLH_multiplicities(self, Q):
 
         data = self.data_comb
         multiplicities = torch.tensor(
             np.array(self.multiplicities), dtype=torch.float32)
 
         n, d = data.shape
-        s = 0
         ones = torch.ones(n)
         zeros = torch.zeros((n, 1))
-        W = 0
-
+        s = 0
         for r in range(0, len(Q)):
             slices = tools.cut_rth_slice(Q, r)
             rth_col = data[:, r]
-            data_denom = torch.tensor(
-                np.array(self.li_comb), dtype=torch.float32)
+            data_denom = data.clone()
             data_denom[:, r] = ones
 
             if self.order == 2:
@@ -88,6 +93,41 @@ class MInteractionModel:
             s -= torch.sum(W * multiplicities)
 
         return s/self.len
+
+    def pseudoLH_all_data(self, Q):
+
+        data = self.data_all
+        n, d = data.shape
+
+        ones = torch.ones(n)
+        zeros = torch.zeros((n, 1))
+        s = 0
+        for r in range(0, len(Q)):
+            slices = tools.cut_rth_slice(Q, r)
+            rth_col = data[:, r]
+            data_denom = data.clone()
+            data_denom[:, r] = ones
+
+            if self.order == 2:
+                W = - slices[0] * ones
+                W1 = W + 2 * torch.matmul(data, slices[1])
+                W2 = W + 2 * torch.matmul(data_denom, slices[1])
+            else:
+                W = slices[0] * ones
+                W1 = W - 3 * torch.matmul(data, slices[1])
+                W1 += 3 * \
+                    torch.sum(torch.mul(torch.matmul(
+                        data, slices[2]), data), dim=1)
+                W2 = W - 3 * torch.matmul(data_denom, slices[1])
+                W2 += 3 * \
+                    torch.sum(torch.mul(torch.matmul(
+                        data_denom, slices[2]), data_denom), dim=1)
+
+            W = torch.mul(
+                W1, rth_col) - torch.logsumexp(torch.cat((zeros, W2.reshape((n, 1))), dim=1), dim=1)
+            s -= torch.sum(W)
+
+        return s/n
 
     def modeltest(self, normalize=True):
 
