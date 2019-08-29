@@ -20,10 +20,11 @@ class MInteractionModel:
         self.dim = len(self.data.columns)
         self.len = len(self.data)
         self.data_all = torch.tensor(np.array(self.data), dtype=torch.float32)
-        self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
+        self.li_comb = None
 
         if (self.len > 2**self.dim) & (self.dim < 14) & (self.use_mult):
             print("Use pseudoLH with multiplicities as pseudoLH.")
+            self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
             self.data_comb = torch.tensor(
                 np.array(self.li_comb), dtype=torch.float32)
 
@@ -43,6 +44,9 @@ class MInteractionModel:
 
     def funcvalue(self, x, normalize=True):
 
+        if self.li_comb is None:
+            self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
+
         x = torch.tensor(x, dtype=torch.float32)
         if normalize:
             return torch.exp(tools.vec_tens_prod(x, self.Q)) * self.normalize(self.Q)
@@ -51,6 +55,9 @@ class MInteractionModel:
 
     def normalize(self, Q):
         f = 0
+
+        if self.li_comb is None:
+            self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
 
         for x in self.li_comb:
             f += torch.exp(tools.vec_tens_prod(torch.tensor(x,
