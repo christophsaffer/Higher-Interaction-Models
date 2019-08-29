@@ -9,11 +9,11 @@ import tools
 
 class MInteractionModel:
 
-    def __init__(self, order, use_mult=False):
+    def __init__(self, order, use_mult=True):
 
         self.order = order
         self.use_mult = use_mult
-        self.Q = 0
+        self.Q = None
 
     def add_dataset(self, path):
         self.data = pd.read_csv(path)  # , header=None)  # index_col=0)
@@ -147,17 +147,16 @@ class MInteractionModel:
     def obj_func(self, Q, S=torch.zeros(1), L=torch.zeros(1), a=0, b=0):
 
         Q = tools.make_tens_str_symm(Q.clone(), self.symm_idx)
-        # Q = tools.make_tens_symm(Q)
 
         return self.pseudoLH(Q) + a * torch.sum(torch.abs(Q)) + b * tools.nuclear_norm_tens(Q)
 
-    def torch_optimize(self, iter, seedpoint=1, param=0.01, optim_alg="ASGD", a=0, b=0):
+    def torch_optimize(self, iter, seedpoint=None, param=0.01, optim_alg="ASGD", a=0, b=0):
 
-        if torch.is_tensor(seedpoint):
-            Q = seedpoint
-        else:
+        if seedpoint is None:
             Q = torch.zeros([self.dim] * self.order,
                             dtype=torch.float32, requires_grad=True)
+        else:
+            Q = seedpoint
 
         s = self.obj_func(Q, a=a, b=b)
         if optim_alg == "ASGD":
@@ -172,6 +171,7 @@ class MInteractionModel:
             optimizer = torch.optim.ASGD([Q], lr=param)
 
         s, s_old = 0, 0
+        self.tempQ = Q
         for i in range(1, iter):
             optimizer.zero_grad()
 
@@ -180,7 +180,6 @@ class MInteractionModel:
             s.sum().backward(retain_graph=True)
             optimizer.step()
 
-            self.temp = Q.clone()
             if (i % 500 == 0):
                 print("Iter =", i)
                 print(Q, "\nFunVal:", float(s))
@@ -190,3 +189,57 @@ class MInteractionModel:
                 s_old = s
 
         return Q
+
+    def obj_func_SL_Reg(self, S, L, a=0, b=0):
+
+        S = tools.make_tens_str_symm(S.clone(), self.symm_idx)
+        L = tools.make_tens_str_symm(L.clone(), self.symm_idx)
+
+        return self.pseudoLH(S+L) + a * torch.sum(torch.abs(S)) + b * tools.nuclear_norm_tens(L)
+
+    def torch_optimize_SL_Reg(self, iter, seedpoint_S=None, seedpoint_L=None, param=0.01, optim_alg="ASGD", a=0, b=0):
+
+        if seedpoint_S is None:
+            S = torch.zeros([self.dim] * self.order,
+                            dtype=torch.float32, requires_grad=True)
+        else:
+            S = seedpoint_S
+
+        if seedpoint_L is None:
+            L = torch.zeros([self.dim] * self.order,
+                            dtype=torch.float32, requires_grad=True)
+        else:
+            L = seedpoint_L
+
+        s = self.obj_func_SL_Reg(S, L, a=a, b=b)
+        if optim_alg == "ASGD":
+            optimizer = torch.optim.ASGD([S, L], lr=param)
+        elif optim_alg == "Adam":
+            optimizer = torch.optim.Adam([S, L], lr=param)
+        elif optim_alg == "SGD":
+            optimizer = torch.optim.SGD(
+                [S, L], lr=param, momentum=0.5, nesterov=True)
+        else:
+            print("Algorithm ", optim_alg, " does not exist, using ASGD ...")
+            optimizer = torch.optim.ASGD([S, L], lr=param)
+
+        s, s_old = 0, 0
+        self.tempS = S
+        self.tempL = L
+        for i in range(1, iter):
+            optimizer.zero_grad()
+
+            s = self.obj_func_SL_Reg(S, L, a=a, b=b)
+
+            s.sum().backward(retain_graph=True)
+            optimizer.step()
+
+            if (i % 500 == 0):
+                print("Iter =", i)
+                print("S =", S, "\nL =", L, "\nFunVal:", float(s))
+                if (s == s_old):
+                    print("No more improvment.. stop.")
+                    break
+                s_old = s
+
+        return S+L

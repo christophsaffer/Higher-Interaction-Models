@@ -58,10 +58,10 @@ def get_str_symm_idx_lst(tens):
     return grouped_idx
 
 
-def make_tens_str_symm(tens, grouped_idx=0):
+def make_tens_str_symm(tens, grouped_idx=None):
     # Make input tens strongly symmetric, grouped_idx from get_str_symm_idx_lst function necessary
 
-    if grouped_idx == 0:  # isNone replace
+    if grouped_idx is None:
         grouped_idx = get_str_symm_idx_lst(tens)
 
     for symm_idx in grouped_idx:
