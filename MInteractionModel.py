@@ -9,9 +9,10 @@ import tools
 
 class MInteractionModel:
 
-    def __init__(self, order):
+    def __init__(self, order, use_mult=False):
 
         self.order = order
+        self.use_mult = use_mult
         self.Q = 0
 
     def add_dataset(self, path):
@@ -19,10 +20,10 @@ class MInteractionModel:
         self.dim = len(self.data.columns)
         self.len = len(self.data)
         self.data_all = torch.tensor(np.array(self.data), dtype=torch.float32)
+        self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
 
-        if (self.len > 2**self.dim) & (self.dim < 14):
+        if (self.len > 2**self.dim) & (self.dim < 14) & (self.use_mult):
             print("Use pseudoLH with multiplicities as pseudoLH.")
-            self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
             self.data_comb = torch.tensor(
                 np.array(self.li_comb), dtype=torch.float32)
 
@@ -146,6 +147,7 @@ class MInteractionModel:
     def obj_func(self, Q, S=torch.zeros(1), L=torch.zeros(1), a=0, b=0):
 
         Q = tools.make_tens_str_symm(Q.clone(), self.symm_idx)
+        # Q = tools.make_tens_symm(Q)
 
         return self.pseudoLH(Q) + a * torch.sum(torch.abs(Q)) + b * tools.nuclear_norm_tens(Q)
 
