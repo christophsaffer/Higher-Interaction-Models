@@ -65,6 +65,23 @@ class MInteractionModel:
 
         return 1/f
 
+    def modeltest(self, normalize=True):
+
+        if self.li_comb is None:
+            self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
+
+        print("x --- Frequiencies (total: ", self.len,
+              ") --- Prediction of the model")
+
+        s = 0
+        for x in self.li_comb:
+            f = round(float(self.funcvalue(x)), 5)
+            frequ = (self.data == x).all(axis=1).sum()
+            print(x, " --- ", frequ, " --- p(x) = ", f)
+            s += np.abs(f - frequ/self.len)
+
+            print("Deviation: ", s/len(self.li_comb))
+
     def pseudoLH_multiplicities(self, Q):
 
         data = self.data_comb
@@ -137,25 +154,11 @@ class MInteractionModel:
 
         return s/n
 
-    def modeltest(self, normalize=True):
-
-        print("x --- Frequiencies (total: ", self.len,
-              ") --- Prediction of the model")
-
-        s = 0
-        for x in self.li_comb:
-            f = round(float(self.funcvalue(x)), 5)
-            frequ = (self.data == x).all(axis=1).sum()
-            print(x, " --- ", frequ, " --- p(x) = ", f)
-            s += np.abs(f - frequ/self.len)
-
-        print("Deviation: ", s/len(self.li_comb))
-
     def obj_func(self, Q, S=torch.zeros(1), L=torch.zeros(1), a=0, b=0):
 
         Q = tools.make_tens_str_symm(Q.clone(), self.symm_idx)
 
-        return self.pseudoLH(Q) + a * torch.sum(torch.abs(Q)) + b * tools.nuclear_norm_tens(Q)
+        return (1 - a - b) * self.pseudoLH(Q) + a * torch.sum(torch.abs(Q)) + b * tools.nuclear_norm_tens(Q)
 
     def torch_optimize(self, iter, seedpoint=None, param=0.01, optim_alg="ASGD", a=0, b=0):
 
@@ -202,7 +205,7 @@ class MInteractionModel:
         S = tools.make_tens_str_symm(S.clone(), self.symm_idx)
         L = tools.make_tens_str_symm(L.clone(), self.symm_idx)
 
-        return self.pseudoLH(S+L) + a * torch.sum(torch.abs(S)) + b * tools.nuclear_norm_tens(L)
+        return (1 - a - b) * self.pseudoLH(S+L) + a * torch.sum(torch.abs(S)) + b * tools.nuclear_norm_tens(L)
 
     def torch_optimize_SL_Reg(self, iter, seedpoint_S=None, seedpoint_L=None, param=0.01, optim_alg="ASGD", a=0, b=0):
 
