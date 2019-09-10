@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import pandas as pd
 import itertools
-from scipy.special import comb
 
 import tools
 
@@ -47,7 +46,8 @@ class MInteractionModel:
         if self.li_comb is None:
             self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
 
-        x = torch.tensor(x, dtype=torch.float32)
+        if not torch.is_tensor(x):
+            x = torch.tensor(x, dtype=torch.float32)
         if normalize:
             return torch.exp(tools.vec_tens_prod(x, self.Q)) * self.normalize(self.Q)
         else:
@@ -82,9 +82,11 @@ class MInteractionModel:
 
             print("Deviation: ", s/len(self.li_comb))
 
-    def pseudoLH_multiplicities(self, Q):
+    def pseudoLH_multiplicities(self, Q, data=None):
 
-        data = self.data_comb
+        if data is None:
+            data = self.data_comb
+
         multiplicities = torch.tensor(
             np.array(self.multiplicities), dtype=torch.float32)
 
@@ -119,9 +121,11 @@ class MInteractionModel:
 
         return s/self.len
 
-    def pseudoLH_all_data(self, Q):
+    def pseudoLH_all_data(self, Q, data=None):
 
-        data = self.data_all
+        if data is None:
+            data = self.data_all
+
         n, d = data.shape
 
         ones = torch.ones(n)
@@ -160,7 +164,7 @@ class MInteractionModel:
 
         return (1 - a - b) * self.pseudoLH(Q) + a * torch.sum(torch.abs(Q)) + b * tools.nuclear_norm_tens(Q)
 
-    def torch_optimize(self, iter, seedpoint=None, param=0.01, optim_alg="ASGD", a=0, b=0):
+    def torch_optimize(self, iter, verbose_at=500, seedpoint=None, param=0.01, optim_alg="ASGD", a=0, b=0):
 
         if seedpoint is None:
             Q = torch.zeros([self.dim] * self.order,
@@ -190,7 +194,7 @@ class MInteractionModel:
             s.sum().backward(retain_graph=True)
             optimizer.step()
 
-            if (i % 500 == 0):
+            if (i % verbose_at == 0):
                 print("Iter =", i)
                 print(Q, "\nFunVal:", float(s))
                 if (s == s_old):
@@ -207,7 +211,7 @@ class MInteractionModel:
 
         return (1 - a - b) * self.pseudoLH(S+L) + a * torch.sum(torch.abs(S)) + b * tools.nuclear_norm_tens(L)
 
-    def torch_optimize_SL_Reg(self, iter, seedpoint_S=None, seedpoint_L=None, param=0.01, optim_alg="ASGD", a=0, b=0):
+    def torch_optimize_SL_Reg(self, iter, verbose_at=500, seedpoint_S=None, seedpoint_L=None, param=0.01, optim_alg="ASGD", a=0, b=0):
 
         if seedpoint_S is None:
             S = torch.zeros([self.dim] * self.order,
@@ -244,7 +248,7 @@ class MInteractionModel:
             s.sum().backward(retain_graph=True)
             optimizer.step()
 
-            if (i % 500 == 0):
+            if (i % verbose_at == 0):
                 print("Iter =", i)
                 print("S =", S, "\nL =", L, "\nFunVal:", float(s))
                 if (s == s_old):
@@ -253,3 +257,15 @@ class MInteractionModel:
                 s_old = s
 
         return S+L
+
+    def cross_validation(self, testset, trainset, optim_iters=5, param=0.1, a=0, b=0):
+        if (1 - a - b) < 0:
+            return 0
+        self.pseudoLH = self.pseudoLH_all_data
+        testset = torch.tensor(np.array(testset), dtype=torch.float32)
+        self.data_all = torch.tensor(np.array(trainset), dtype=torch.float32)
+        Q = self.torch_optimize_SL_Reg(
+            iter=optim_iters, verbose_at=optim_iters+1, param=param, a=a, b=b)
+        self.pseudoLH(Q, data=testset)
+
+        return float(self.pseudoLH(Q, data=testset))

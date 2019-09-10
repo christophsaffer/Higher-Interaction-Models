@@ -113,6 +113,15 @@ def save_3Dtens_to_file(tens, filename="tensor.txt", digits=8):
                 f.write(str(round(float(tens[k, j, i]), digits)) + ", ")
 
     f.close()
+
+
+def split_train_test(data, rate=0.25):
+    len_test = int(len(data) * rate)
+    testset = data.sample(len_test)
+    trainset = data.drop(testset.index)
+
+    return testset, trainset
+
 # def set_values_to_tensor(q):
 #     if len(q) == 7:
 #         q1, q2, q3, q12, q13, q23, q123 = q[0], q[1], q[2], q[3], q[4], q[5], q[6]
