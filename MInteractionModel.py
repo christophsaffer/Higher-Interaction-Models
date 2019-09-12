@@ -80,7 +80,7 @@ class MInteractionModel:
             print(x, " --- ", frequ, " --- p(x) = ", f)
             s += np.abs(f - frequ/self.len)
 
-            print("Deviation: ", s/len(self.li_comb))
+        print("Deviation: ", s/len(self.li_comb))
 
     def pseudoLH_multiplicities(self, Q, data=None):
 
