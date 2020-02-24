@@ -12,7 +12,7 @@ or to fit a model of interaction order 3
   ./fit_model_order3_script.py
 ```
 
-To understand the theory behind, read the .pdf file.
+To understand the theory behind, read the .pdf file in DOC/.
 
 An application can be seen in the directory spamfilter/ where model is trained to classify emails as spam or not spam.
 
