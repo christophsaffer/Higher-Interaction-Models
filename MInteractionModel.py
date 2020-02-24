@@ -43,8 +43,9 @@ class MInteractionModel:
 
     def funcvalue(self, x, normalize=True):
 
-        if self.li_comb is None:
-            self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
+        if normalize:
+            if self.li_comb is None:
+                self.li_comb = list(itertools.product([0, 1], repeat=self.dim))
 
         if not torch.is_tensor(x):
             x = torch.tensor(x, dtype=torch.float32)
@@ -91,8 +92,8 @@ class MInteractionModel:
             np.array(self.multiplicities), dtype=torch.float32)
 
         n, d = data.shape
-        ones = torch.ones(n)
-        zeros = torch.zeros((n, 1))
+        ones = torch.ones(n, dtype=torch.float32)
+        zeros = torch.zeros((n, 1), dtype=torch.float32)
         s = 0
         for r in range(0, len(Q)):
             slices = tools.cut_rth_slice(Q, r)
@@ -128,8 +129,8 @@ class MInteractionModel:
 
         n, d = data.shape
 
-        ones = torch.ones(n)
-        zeros = torch.zeros((n, 1))
+        ones = torch.ones(n, dtype=torch.float32)
+        zeros = torch.zeros((n, 1), dtype=torch.float32)
         s = 0
         for r in range(0, len(Q)):
             slices = tools.cut_rth_slice(Q, r)
@@ -158,7 +159,7 @@ class MInteractionModel:
 
         return s/n
 
-    def obj_func(self, Q, S=torch.zeros(1), L=torch.zeros(1), a=0, b=0):
+    def obj_func(self, Q, a=0, b=0):
 
         Q = tools.make_tens_str_symm(Q.clone(), self.symm_idx)
 
